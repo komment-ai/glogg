@@ -91,7 +91,7 @@ panes.forEach(({ filter, title = "all" }, index) => {
     index,
   );
   if (filter) {
-    startTailProcess(pane, "gtail/target/release/gtail", ["--filter", filter]);
+    startTailProcess(pane, "../target/release/gtail", ["--filter", filter]);
   } else {
     pane.pushLine("No filter specified.");
   }
