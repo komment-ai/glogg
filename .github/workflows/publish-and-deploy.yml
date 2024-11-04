@@ -1,0 +1,45 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  package:
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+
+      - name: Build with Cargo
+        run: cargo build --release
+
+      - name: Bundle Executable (windows)
+        run: |
+          powershell Compress-Archive -Path target/release/glogg.exe -DestinationPath target/glogg-${{ matrix.os }}.zip
+        if: ${{ runner.os == 'Windows' }}
+
+      - name: Set Executable Permissions and Bundle (unix)
+        run: |
+          chmod +x target/release/glogg
+          tar -czvf target/glogg-${{ matrix.os }}.tar.gz -C target/release glogg
+        if: ${{ runner.os != 'Windows' }}
+
+      - name: Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            target/glogg-${{ matrix.os }}*.tar.gz
+            target/glogg-${{ matrix.os }}*.zip
+          generate_release_notes: true
