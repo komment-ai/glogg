@@ -1,0 +1,15 @@
+[
+  {
+    "filter": "labels.containername=komment-backend",
+    "title": "Backend"
+  },
+  {
+    "filter": "labels.containername=komment-engine",
+    "title": "Engine"
+  },
+  {
+    "filter": "labels.containername=komment-extractor",
+    "title": "Extractor"
+  },
+  {}
+]

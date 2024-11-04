@@ -1,0 +1,17 @@
+{
+  "name": "tail",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd gtail && cargo build --release",
+    "run": "node index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "blessed": "^0.1.81",
+    "node-pty": "^1.0.0"
+  }
+}
