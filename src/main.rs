@@ -24,6 +24,8 @@ struct Args {
     start: Option<String>,
     #[clap(long, allow_hyphen_values = true)]
     stop: Option<String>,
+    #[clap(long)]
+    project: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -54,11 +56,24 @@ async fn main() {
         get,
         start,
         stop,
+        project,
     } = Args::parse();
 
-    let mut gcloud = Command::new("gcloud");
+    // Check if we're logged into gcloud
+    Command::new("gcloud")
+        .args(["projects", "list"])
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Run `gcloud auth login` to authenticate");
 
-    let mut filters = fetch_instance_filters(&mut gcloud, &filter).await;
+    let project = if let Some(proj) = project {
+        proj
+    } else {
+        get_current_project(&mut Command::new("gcloud")).await
+    };
+    println!("Project: {project}");
+
+    let mut filters = fetch_instance_filters(&mut Command::new("gcloud"), &project, &filter).await;
 
     if get {
         let Ok(start_time) = parse_datetime::parse_datetime(start.unwrap()) else {
@@ -74,15 +89,13 @@ async fn main() {
             stop_time.format("%+"),
             start_time.format("%+")
         );
-        print!("{filters}");
-        let mut gcloud = Command::new("gcloud");
-        let output = get_log_slice(&mut gcloud, &filters).await;
+
+        let output = get_log_slice(&mut Command::new("gcloud"), &project, &filters).await;
         let log_lines = output.lines().map(|s| Ok(s.to_string()));
         process_slice_output(log_lines, pretty);
         exit(0);
     }
-    let mut gcloud = Command::new("gcloud");
-    let mut stream = start_log_stream(&mut gcloud, &filters).await;
+    let mut stream = start_log_stream(&mut Command::new("gcloud"), &project, &filters).await;
 
     let stdout = stream.stdout.take().expect("Failed to capture stdout");
     let reader = BufReader::new(stdout);
@@ -94,8 +107,8 @@ async fn main() {
         sleep(Duration::from_secs(30)).await;
 
         // Fetch the latest instance filters
-        let mut gcloud = Command::new("gcloud");
-        let new_filters = fetch_instance_filters(&mut gcloud, &filter).await;
+        let new_filters =
+            fetch_instance_filters(&mut Command::new("gcloud"), &project, &filter).await;
 
         // If the instance list has changed, update the filters and restart the stream
         if new_filters != filters {
@@ -107,8 +120,7 @@ async fn main() {
             current_task.abort();
 
             // Start a new stream with the updated filters
-            let mut gcloud = Command::new("gcloud");
-            stream = start_log_stream(&mut gcloud, &filters).await;
+            stream = start_log_stream(&mut Command::new("gcloud"), &project, &filters).await;
 
             // Process the new stream output
             let stdout = stream.stdout.take().expect("Failed to capture stdout");
@@ -119,8 +131,18 @@ async fn main() {
     }
 }
 
+async fn get_current_project(command: &mut Command) -> String {
+    let project = command
+        .args(["config", "get", "project"])
+        .output()
+        .await
+        .expect("Unable to get current project");
+
+    str::from_utf8(&project.stdout).unwrap().to_string()
+}
+
 // Helper function to fetch instance filters based on the filter parameter
-async fn fetch_instance_filters(command: &mut Command, filter: &str) -> String {
+async fn fetch_instance_filters(command: &mut Command, project: &str, filter: &str) -> String {
     let instances = command
         .args([
             "compute",
@@ -130,6 +152,8 @@ async fn fetch_instance_filters(command: &mut Command, filter: &str) -> String {
             filter,
             "--format",
             "get(id)",
+            "--project",
+            project,
         ])
         .output()
         .await
@@ -144,17 +168,17 @@ async fn fetch_instance_filters(command: &mut Command, filter: &str) -> String {
         .join(" OR ")
 }
 
-async fn start_log_stream(command: &mut Command, filter: &str) -> Child {
+async fn start_log_stream(command: &mut Command, project: &str, filter: &str) -> Child {
     command
-        .args(["alpha", "logging", "tail", filter])
+        .args(["alpha", "logging", "tail", filter, "--project", project])
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to start gcloud logging tail")
 }
 
-async fn get_log_slice(command: &mut Command, filter: &str) -> String {
+async fn get_log_slice(command: &mut Command, project: &str, filter: &str) -> String {
     let output = command
-        .args(["logging", "read", filter])
+        .args(["logging", "read", filter, "--project", project])
         .stdout(Stdio::piped())
         .spawn()
         .expect("Failed to execute gcloud read command")
@@ -253,7 +277,7 @@ mod tests {
         // Replace this with actual test data or mocking logic if using a mocking crate
         let mut mock_gcloud = Command::new("echo");
         let filter = "test-filter";
-        let result = fetch_instance_filters(&mut mock_gcloud, filter).await;
+        let result = fetch_instance_filters(&mut mock_gcloud, "mock-project", filter).await;
 
         // Assert that the result is in the expected format, e.g., "resource.labels.instance_id=..."
         assert!(result.contains("resource.labels.instance_id="));
@@ -264,7 +288,7 @@ mod tests {
     async fn test_get_log_slice() {
         let mut mock_gcloud = Command::new("echo");
         let filter = "test-log-filter";
-        let output = get_log_slice(&mut mock_gcloud, filter).await;
+        let output = get_log_slice(&mut mock_gcloud, "mock-project", filter).await;
 
         // Check if the output contains expected content (assuming mock gcloud returns test data)
         assert!(output.contains("logging read test-log-filter"));
