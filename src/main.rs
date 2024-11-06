@@ -1,5 +1,6 @@
 use core::str;
 use std::process::{exit, Stdio};
+use std::vec;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::time::{sleep, Duration};
@@ -172,7 +173,9 @@ async fn process_stream_output(mut lines: LinesStream<impl AsyncBufReadExt + Unp
         if line == "---" {
             // Parse the collected YAML block if it's non-empty
             if !yaml_buffer.trim().is_empty() {
-                print_log_entry(&yaml_buffer, pretty);
+                if let Some(entry) = log_entry(&yaml_buffer, pretty) {
+                    print!("{entry}");
+                }
                 yaml_buffer.clear();
             }
         } else {
@@ -189,13 +192,16 @@ where
     I: Iterator<Item = Result<String, std::io::Error>>,
 {
     let mut yaml_buffer = String::new();
+    let mut entries = vec![];
 
     for line in lines {
         let line = line.unwrap();
         if line == "---" {
             // Parse the collected YAML block if it's non-empty
             if !yaml_buffer.trim().is_empty() {
-                print_log_entry(&yaml_buffer, pretty);
+                if let Some(entry) = log_entry(&yaml_buffer, pretty) {
+                    entries.push(entry);
+                }
                 yaml_buffer.clear();
             }
         } else {
@@ -208,27 +214,30 @@ where
 
     // Handle any remaining YAML in the buffer after the loop
     if !yaml_buffer.trim().is_empty() {
-        print_log_entry(&yaml_buffer, pretty);
+        if let Some(entry) = log_entry(&yaml_buffer, pretty) {
+            entries.push(entry);
+        }
+    }
+    entries.reverse();
+    for entry in entries {
+        print!("{entry}");
     }
 }
 
-fn print_log_entry(yaml: &str, pretty: bool) {
-    let Ok(Log {
+fn log_entry(yaml: &str, pretty: bool) -> Option<String> {
+    let Log {
         json_payload: Payload { message, time },
         resource: Resource {
             labels: Labels { instance_id },
         },
-    }) = serde_yaml::from_str(yaml)
-    else {
-        return;
-    };
-    if pretty {
+    } = serde_yaml::from_str(yaml).ok()?;
+    Some(if pretty {
         let format_time = format!("{: <30}", time);
         let format_id = format!("{: <19}", instance_id);
-        print!("[{color_yellow}{format_id}{color_reset}] {color_green}{format_time}{color_reset} | {message}");
+        format!("[{color_yellow}{format_id}{color_reset}] {color_green}{format_time}{color_reset} | {message}")
     } else {
-        print!("{message}");
-    }
+        format!("{message}")
+    })
 }
 
 #[cfg(test)]
@@ -282,9 +291,9 @@ mod tests {
         // You would check for expected print output if you captured it using `print!` or `println!`
     }
 
-    // Test `print_log_entry` directly by passing sample YAML data
+    // Test `log_entry` directly by passing sample YAML data
     #[test]
-    fn test_print_log_entry() {
+    fn test_log_entry() {
         let yaml_data = r#"
             json_payload:
               message: "Test message"
@@ -294,7 +303,7 @@ mod tests {
                 instance_id: "test-instance"
         "#;
 
-        print_log_entry(yaml_data, true);
+        log_entry(yaml_data, true);
         // Validate printed output if capturing stdout (not shown here for simplicity)
     }
 
