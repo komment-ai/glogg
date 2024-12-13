@@ -19,8 +19,13 @@ where
         if line == "---" {
             // Parse the collected YAML block if it's non-empty
             if !yaml_buffer.trim().is_empty() {
-                if let Some(entry) = Log::<F>::parse(&yaml_buffer) {
-                    write!(writer, "{entry}")?;
+                match Log::<F>::parse(&yaml_buffer) {
+                    Some(entry) => {
+                        write!(writer, "{entry}")?;
+                    }
+                    None => {
+                        eprintln!("Failed to parse log entry:\n{}", yaml_buffer);
+                    }
                 }
                 yaml_buffer.clear();
             }

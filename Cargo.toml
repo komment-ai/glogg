@@ -11,6 +11,7 @@ inline_colorization = "0.1.6"
 parse_datetime = "0.6.0"
 serde = { version = "1.0.214", features = ["derive"] }
 serde_yaml = "0.9.34"
+strip-ansi-escapes = "0.2.0"
 tokio = { version = "1.41.0", features = [
     "rt-multi-thread",
     "io-util",
