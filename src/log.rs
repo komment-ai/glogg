@@ -12,7 +12,16 @@ pub struct Log<Format> {
 
 impl<Format> Log<Format> {
     pub fn parse(yaml: &str) -> Option<Self> {
-        serde_yaml::from_str(yaml).ok()?
+        let cleaned = strip_ansi_escapes::strip_str(yaml);
+
+        match serde_yaml::from_str(&cleaned) {
+            Ok(log) => Some(log),
+            Err(e) => {
+                eprintln!("Failed to parse YAML: {}", e);
+                eprintln!("YAML content:\n{}", cleaned);
+                None
+            }
+        }
     }
 }
 
