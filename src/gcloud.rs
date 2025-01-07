@@ -3,7 +3,6 @@ use std::{process::Stdio, str};
 use tokio::process::{self, Child};
 
 pub trait GcloudCommand {
-    // I may recall something about a command trait.. could be useful here
     fn new() -> process::Command;
 }
 
@@ -15,7 +14,6 @@ impl GcloudCommand for Gcloud {
 }
 
 pub fn is_authed() -> bool {
-    // @simon this is wrong, it does not fail when not authenticated
     std::process::Command::new("gcloud")
         .args(["projects", "list"])
         .stdout(Stdio::piped())
