@@ -4,7 +4,6 @@ use tokio_stream::{wrappers::LinesStream, StreamExt};
 use crate::log::Log;
 
 pub async fn transpose<F>(
-    // TODO: perhaps could be an AsycnStream, iirc tokio exposes stdout as an async stream
     mut writer: impl std::io::Write,
     reader: impl AsyncBufRead + Unpin,
 ) -> std::io::Result<()>
