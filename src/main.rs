@@ -44,6 +44,10 @@ struct Args {
 
     #[clap(subcommand)]
     command: Command,
+
+    /// whether to include logs that fail to parse
+    #[clap(short, long, global = true)]
+    include_failures: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -64,7 +68,7 @@ enum Command {
 }
 
 impl Command {
-    async fn run<F>(self, project: &str, filter: &str) -> anyhow::Result<()>
+    async fn run<F>(self, project: &str, filter: &str, include_failures: bool) -> anyhow::Result<()>
     where
         Log<F>: std::fmt::Display + 'static,
     {
@@ -90,6 +94,7 @@ impl Command {
                             .take()
                             .ok_or(anyhow!("Failed to capture stdout"))?,
                     ),
+                    include_failures,
                 )
                 .await?
             }
@@ -107,6 +112,7 @@ impl Command {
                                 .take()
                                 .ok_or(anyhow!("Failed to capture stdout"))?,
                         ),
+                        include_failures,
                     ));
 
                     let mut new_filters;
@@ -131,6 +137,7 @@ async fn main() {
     std::env::set_var("CLOUDSDK_PYTHON_SITEPACKAGES", "1");
     let Args {
         filter,
+        include_failures,
         pretty,
         project,
         command,
@@ -155,10 +162,22 @@ async fn main() {
 
     if let Err(e) = match pretty {
         true => match atty::is(Stream::Stdout) {
-            true => command.run::<Decorated>(&project, &filter).await,
-            false => command.run::<Pretty>(&project, &filter).await,
+            true => {
+                command
+                    .run::<Decorated>(&project, &filter, include_failures)
+                    .await
+            }
+            false => {
+                command
+                    .run::<Pretty>(&project, &filter, include_failures)
+                    .await
+            }
         },
-        false => command.run::<Raw>(&project, &filter).await,
+        false => {
+            command
+                .run::<Raw>(&project, &filter, include_failures)
+                .await
+        }
     } {
         eprintln!("Error: {}", e);
         exit(1);

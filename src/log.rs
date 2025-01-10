@@ -11,14 +11,16 @@ pub struct Log<Format> {
 }
 
 impl<Format> Log<Format> {
-    pub fn parse(yaml: &str) -> Option<Self> {
+    pub fn parse(yaml: &str, include_failures: bool) -> Option<Self> {
         let cleaned = strip_ansi_escapes::strip_str(yaml);
 
         match serde_yaml::from_str(&cleaned) {
             Ok(log) => Some(log),
             Err(e) => {
-                eprintln!("Failed to parse YAML: {}", e);
-                eprintln!("YAML content:\n{}", cleaned);
+                if include_failures {
+                    eprintln!("Failed to parse YAML: {}", e);
+                    eprintln!("YAML content:\n{}", cleaned);
+                }
                 None
             }
         }
@@ -113,7 +115,7 @@ mod tests {
 
                 let expected_output = format!($expected_output);
                 assert_eq!(
-                    Log::<$format>::parse(yaml_data).unwrap().to_string(),
+                    Log::<$format>::parse(yaml_data, true).unwrap().to_string(),
                     expected_output
                 );
             }
