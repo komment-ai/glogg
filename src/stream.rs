@@ -6,6 +6,7 @@ use crate::log::Log;
 pub async fn transpose<F>(
     mut writer: impl std::io::Write,
     reader: impl AsyncBufRead + Unpin,
+    include_failures: bool,
 ) -> std::io::Result<()>
 where
     Log<F>: std::fmt::Display,
@@ -18,13 +19,14 @@ where
         if line == "---" {
             // Parse the collected YAML block if it's non-empty
             if !yaml_buffer.trim().is_empty() {
-                match Log::<F>::parse(&yaml_buffer) {
+                match Log::<F>::parse(&yaml_buffer, include_failures) {
                     Some(entry) => {
                         write!(writer, "{entry}")?;
                     }
-                    None => {
+                    None if include_failures => {
                         eprintln!("Failed to parse log entry:\n{}", yaml_buffer);
                     }
+                    None => {}
                 }
                 yaml_buffer.clear();
             }
@@ -64,7 +66,7 @@ mod tests {
         let reader = BufReader::new(Cursor::new(log_data));
         let mut result = Vec::new();
 
-        transpose::<Raw>(&mut result, reader).await.unwrap();
+        transpose::<Raw>(&mut result, reader, true).await.unwrap();
         let result = String::from_utf8(result).unwrap();
         assert_eq!(result, "Test message");
     }
