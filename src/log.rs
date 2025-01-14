@@ -41,9 +41,16 @@ impl std::fmt::Display for Log<Decorated> {
             ..
         } = self;
 
+        // Define an array of acceptable colors
+        let colors = [color_yellow, color_green, color_blue, color_red, color_cyan];
+
+        // Determine the color based on instance_id
+        let color_index = instance_id.chars().map(|c| c as usize).sum::<usize>() % colors.len();
+        let selected_color = colors[color_index];
+
         write!(
             f,
-            "[{color_yellow}{instance_id: <19}{color_reset}] {color_green}{time: <30}{color_reset} | {message}"
+            "[{selected_color}{instance_id: <19}{color_reset}] {color_green}{time: <30}{color_reset} | {message}"
         )
     }
 }
@@ -125,7 +132,7 @@ mod tests {
     test!(
         test_decorated:
         Decorated =>
-        "[{color_yellow}test-instance      {color_reset}] {color_green}2023-01-01T12:00:00Z          {color_reset} | Test message"
+        "[{color_green}test-instance      {color_reset}] {color_green}2023-01-01T12:00:00Z          {color_reset} | Test message"
     );
 
     test!(
